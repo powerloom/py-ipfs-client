@@ -133,15 +133,9 @@ class AsyncIPFSClient:
 
             # Register the remote pinning service with the IPFS node
             # curl -X POST "http://127.0.0.1:5001/api/v0/pin/remote/service/add?arg=<service>&arg=<endpoint>&arg=<key>"
-            try:
-                r = await self._client.post(
-                    url=f'/pin/remote/service/add?arg={self._settings.remote_pinning.service_name}&arg={self._settings.remote_pinning.service_endpoint}&arg={self._settings.remote_pinning.service_token}',
-                )
-            except Exception as e:
-                raise IPFSAsyncClientError(
-                    f'IPFS client error: remote pinning service add network operation failed: {type(e).__name__}: {str(e)}',
-                ) from e
-            
+            r = await self._client.post(
+                url=f'/pin/remote/service/add?arg={self._settings.remote_pinning.service_name}&arg={self._settings.remote_pinning.service_endpoint}&arg={self._settings.remote_pinning.service_token}',
+            )
             if r.status_code != 200:
                 if r.status_code == 500:
                     # Handle case where service is already registered
@@ -213,17 +207,10 @@ class AsyncIPFSClient:
         # Prepare the file data for upload
         files = {'': data}
         # Upload to IPFS with CID version 1
-        try:
-            r = await self._client.post(
-                url='/add?cid-version=1',
-                files=files,
-            )
-        except Exception as e:
-            # Catch httpx network errors and convert to IPFSAsyncClientError
-            raise IPFSAsyncClientError(
-                f'IPFS client error: add_bytes network operation failed: {type(e).__name__}: {str(e)}',
-            ) from e
-        
+        r = await self._client.post(
+            url='/add?cid-version=1',
+            files=files,
+        )
         if r.status_code != 200:
             raise IPFSAsyncClientError(
                 f'IPFS client error: add_bytes operation, response:{r}',
@@ -244,17 +231,12 @@ class AsyncIPFSClient:
         # Pin to remote pinning service if enabled
         if self._settings.remote_pinning.enabled:
             # curl -X POST "http://127.0.0.1:5001/api/v0/pin/remote/add?arg=<ipfs-path>&service=<value>&name=<value>&background=false"
-            try:
-                r = await self._client.post(
-                    url=f'/pin/remote/add?arg={generated_cid}&service={self._settings.remote_pinning.service_name}&background={self._settings.remote_pinning.background_pinning}',
-                )
-                if r.status_code != 200:
-                    self._logger.error(
-                        f'IPFS client error: remote pinning add operation, response:{r}',
-                    )
-            except Exception as e:
+            r = await self._client.post(
+                url=f'/pin/remote/add?arg={generated_cid}&service={self._settings.remote_pinning.service_name}&background={self._settings.remote_pinning.background_pinning}',
+            )
+            if r.status_code != 200:
                 self._logger.error(
-                    f'IPFS client error: remote pinning network operation failed: {type(e).__name__}: {str(e)}',
+                    f'IPFS client error: remote pinning add operation, response:{r}',
                 )
         return generated_cid
 
@@ -312,28 +294,19 @@ class AsyncIPFSClient:
 
         last_response_code = None
         # Stream the response to handle potentially large content
-        try:
-            async with self._client.stream(method='POST', url=f'/cat?arg={cid}') as response:
-                if response.status_code != 200:
-                    raise IPFSAsyncClientError(
-                        f'IPFS client error: cat on CID {cid}, response status code error: {response.status_code}',
-                    )
-                # Accumulate the response chunks
-                if not bytes_mode:
-                    async for chunk in response.aiter_text():
-                        response_body += chunk
-                else:
-                    async for chunk in response.aiter_bytes():
-                        response_body += chunk
-                last_response_code = response.status_code
-        except IPFSAsyncClientError:
-            # Re-raise IPFS client errors as-is
-            raise
-        except Exception as e:
-            # Catch httpx network errors and convert to IPFSAsyncClientError
-            raise IPFSAsyncClientError(
-                f'IPFS client error: cat network operation failed on CID {cid}: {type(e).__name__}: {str(e)}',
-            ) from e
+        async with self._client.stream(method='POST', url=f'/cat?arg={cid}') as response:
+            if response.status_code != 200:
+                raise IPFSAsyncClientError(
+                    f'IPFS client error: cat on CID {cid}, response status code error: {response.status_code}',
+                )
+            # Accumulate the response chunks
+            if not bytes_mode:
+                async for chunk in response.aiter_text():
+                    response_body += chunk
+            else:
+                async for chunk in response.aiter_bytes():
+                    response_body += chunk
+            last_response_code = response.status_code
 
         # Ensure we received some content
         if not response_body:
@@ -390,14 +363,7 @@ class AsyncIPFSClient:
             )
 
         # First, unpin from local node
-        try:
-            r = await self._client.post(url=f'/pin/rm?arg={cid}')
-        except Exception as e:
-            self._logger.error(
-                f'IPFS client error: local pin removal network operation failed for CID {cid}: {type(e).__name__}: {str(e)}',
-            )
-            return False
-        
+        r = await self._client.post(url=f'/pin/rm?arg={cid}')
         if r.status_code != 200:
             self._logger.error(
                 f'IPFS client error: local pin removal operation for CID {cid}, response:{r}',
@@ -406,17 +372,12 @@ class AsyncIPFSClient:
 
         # Remove from remote pinning service if enabled
         if self._settings.remote_pinning.enabled and not skip_remote_pinning_removal:
-            try:
-                r = await self._client.post(
-                    url=f'/pin/remote/rm?arg={cid}&service={self._settings.remote_pinning.service_name}',
-                )
-                if r.status_code != 200:
-                    self._logger.error(
-                        f'IPFS client error: remote pin removal operation for CID {cid}, response:{r}',
-                    )
-            except Exception as e:
+            r = await self._client.post(
+                url=f'/pin/remote/rm?arg={cid}&service={self._settings.remote_pinning.service_name}',
+            )
+            if r.status_code != 200:
                 self._logger.error(
-                    f'IPFS client error: remote pin removal network operation failed for CID {cid}: {type(e).__name__}: {str(e)}',
+                    f'IPFS client error: remote pin removal operation for CID {cid}, response:{r}',
                 )
 
         # Delete from S3 if enabled

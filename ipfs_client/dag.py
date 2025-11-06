@@ -115,16 +115,10 @@ class DAGSection:
         files = {'': bytes_body}
         
         # Make the API request to add data to the DAG
-        try:
-            r = await self._client.post(
-                url=f'/dag/put?pin={str(pin).lower()}',
-                files=files,
-            )
-        except Exception as e:
-            # Catch httpx network errors and convert to IPFSAsyncClientError
-            raise IPFSAsyncClientError(
-                f'IPFS client error: dag-put network operation failed: {type(e).__name__}: {str(e)}',
-            ) from e
+        r = await self._client.post(
+            url=f'/dag/put?pin={str(pin).lower()}',
+            files=files,
+        )
         
         # Check if the operation was successful
         if r.status_code != 200:
@@ -154,13 +148,7 @@ class DAGSection:
             IPFSAsyncClientError: If the DAG get operation fails
         """
         # Make the API request to get data from the DAG
-        try:
-            response = await self._client.post(url=f'/dag/get?arg={dag_cid}')
-        except Exception as e:
-            # Catch httpx network errors and convert to IPFSAsyncClientError
-            raise IPFSAsyncClientError(
-                f'IPFS client error: dag-get network operation failed on CID {dag_cid}: {type(e).__name__}: {str(e)}',
-            ) from e
+        response = await self._client.post(url=f'/dag/get?arg={dag_cid}')
         
         # Check if the operation was successful
         if response.status_code != 200:
