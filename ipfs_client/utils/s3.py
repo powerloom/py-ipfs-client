@@ -15,7 +15,14 @@ class S3UploadError(Exception):
     Raised when an upload operation to S3 fails and cannot be recovered
     through the retry mechanism.
     """
-    pass
+    def __init__(self, message: str):
+        """
+        Initialize the exception with an error message.
+        
+        Args:
+            message (str): Detailed error message describing the S3 upload failure
+        """
+        super().__init__(message)
 
 
 class S3DeleteError(Exception):
@@ -25,7 +32,14 @@ class S3DeleteError(Exception):
     Raised when a delete operation from S3 fails and cannot be recovered
     through the retry mechanism.
     """
-    pass
+    def __init__(self, message: str):
+        """
+        Initialize the exception with an error message.
+        
+        Args:
+            message (str): Detailed error message describing the S3 delete failure
+        """
+        super().__init__(message)
 
 
 def log_retry(retry_state):
