@@ -10,6 +10,7 @@ import ipfs_client.exceptions
 import ipfs_client.utils.addr as addr_util
 from ipfs_client.dag import DAGSection
 from ipfs_client.dag import IPFSAsyncClientError
+from ipfs_client.dag import IPFSAsyncClientRetriableError
 from ipfs_client.default_logger import logger
 from ipfs_client.settings.data_models import IPFSConfig
 from ipfs_client.utils.s3 import S3Uploader
@@ -207,10 +208,17 @@ class AsyncIPFSClient:
         # Prepare the file data for upload
         files = {'': data}
         # Upload to IPFS with CID version 1
-        r = await self._client.post(
-            url='/add?cid-version=1',
-            files=files,
-        )
+        try:
+            r = await self._client.post(
+                url='/add?cid-version=1',
+                files=files,
+            )
+        except Exception as e:
+            # Catch httpx network errors and convert to retriable exception
+            raise IPFSAsyncClientRetriableError(
+                f'IPFS client network error in add_bytes: {type(e).__name__}: {str(e)}',
+            ) from e
+        
         if r.status_code != 200:
             raise IPFSAsyncClientError(
                 f'IPFS client error: add_bytes operation, response:{r}',
@@ -226,7 +234,13 @@ class AsyncIPFSClient:
 
         # Upload to S3 if enabled
         if self._settings.s3.enabled:
-            await self._s3_uploader.upload_file(data=data, file_name=generated_cid)
+            try:
+                await self._s3_uploader.upload_file(data=data, file_name=generated_cid)
+            except Exception as e:
+                # Catch S3 upload errors and convert to retriable exception
+                raise IPFSAsyncClientRetriableError(
+                    f'S3 upload error for CID {generated_cid}: {type(e).__name__}: {str(e)}',
+                ) from e
 
         # Pin to remote pinning service if enabled
         if self._settings.remote_pinning.enabled:
@@ -294,19 +308,28 @@ class AsyncIPFSClient:
 
         last_response_code = None
         # Stream the response to handle potentially large content
-        async with self._client.stream(method='POST', url=f'/cat?arg={cid}') as response:
-            if response.status_code != 200:
-                raise IPFSAsyncClientError(
-                    f'IPFS client error: cat on CID {cid}, response status code error: {response.status_code}',
-                )
-            # Accumulate the response chunks
-            if not bytes_mode:
-                async for chunk in response.aiter_text():
-                    response_body += chunk
-            else:
-                async for chunk in response.aiter_bytes():
-                    response_body += chunk
-            last_response_code = response.status_code
+        try:
+            async with self._client.stream(method='POST', url=f'/cat?arg={cid}') as response:
+                if response.status_code != 200:
+                    raise IPFSAsyncClientError(
+                        f'IPFS client error: cat on CID {cid}, response status code error: {response.status_code}',
+                    )
+                # Accumulate the response chunks
+                if not bytes_mode:
+                    async for chunk in response.aiter_text():
+                        response_body += chunk
+                else:
+                    async for chunk in response.aiter_bytes():
+                        response_body += chunk
+                last_response_code = response.status_code
+        except IPFSAsyncClientError:
+            # Re-raise IPFS client errors as-is
+            raise
+        except Exception as e:
+            # Catch httpx network errors and convert to retriable exception
+            raise IPFSAsyncClientRetriableError(
+                f'IPFS client network error in cat on CID {cid}: {type(e).__name__}: {str(e)}',
+            ) from e
 
         # Ensure we received some content
         if not response_body:

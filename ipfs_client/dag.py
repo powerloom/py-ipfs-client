@@ -19,7 +19,6 @@ class IPFSAsyncClientError(Exception):
             message (str): Detailed error message describing the IPFS operation failure
         """
         super().__init__(message)
-        self._message = message
 
     def __str__(self) -> str:
         """
@@ -28,7 +27,7 @@ class IPFSAsyncClientError(Exception):
         Returns:
             str: The error message
         """
-        return self._message
+        return self.args[0] if self.args else ''
 
     def __repr__(self) -> str:
         """
@@ -37,7 +36,25 @@ class IPFSAsyncClientError(Exception):
         Returns:
             str: The error message
         """
-        return self._message
+        return self.args[0] if self.args else ''
+
+
+class IPFSAsyncClientRetriableError(Exception):
+    """
+    Retriable exception for IPFS client transient errors.
+    
+    This exception is raised for network errors and other transient failures
+    that should trigger retry logic. Unlike IPFSAsyncClientError, this exception
+    will be retried by tenacity decorators.
+    """
+    def __init__(self, message: str):
+        """
+        Initialize the exception with an error message.
+        
+        Args:
+            message (str): Detailed error message describing the transient failure
+        """
+        super().__init__(message)
 
 
 class DAGBlock:
