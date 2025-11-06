@@ -140,19 +140,19 @@ class S3Uploader:
         except ParamValidationError as e:
             # Handle validation errors (non-retryable)
             logger.error('Parameter validation error: {}', str(e))
-            raise ValueError(f'Invalid parameters: {str(e)}')
+            raise ValueError(f'Invalid parameters: {str(e)}') from e
 
         except (ClientError, ConnectionError) as e:
             # Handle AWS-specific errors (retryable)
             logger.error('S3 operation failed: {}', str(e))
             self.client = None  # Reset client on error to force recreation
-            raise
+            raise S3UploadError(f'S3 operation failed: {str(e)}') from e
 
         except Exception as e:
             # Handle unexpected errors (non-retryable)
             logger.exception('Unexpected error during upload')
             self.client = None  # Reset client on error
-            raise S3UploadError(f'Upload failed: {str(e)}')
+            raise S3UploadError(f'Upload failed: {str(e)}') from e
 
     async def delete_file(
         self,
@@ -190,16 +190,16 @@ class S3Uploader:
         except ParamValidationError as e:
             # Handle validation errors (non-retryable)
             logger.error('Parameter validation error: {}', str(e))
-            raise ValueError(f'Invalid parameters: {str(e)}')
+            raise ValueError(f'Invalid parameters: {str(e)}') from e
 
         except (ClientError, ConnectionError) as e:
             # Handle AWS-specific errors (retryable)
             logger.error('S3 delete operation failed: {}', str(e))
             self.client = None  # Reset client on error to force recreation
-            raise
+            raise S3DeleteError(f'S3 delete operation failed: {str(e)}') from e
 
         except Exception as e:
             # Handle unexpected errors (non-retryable)
             logger.exception('Unexpected error during deletion')
             self.client = None  # Reset client on error
-            raise S3DeleteError(f'Delete failed: {str(e)}')
+            raise S3DeleteError(f'Delete failed: {str(e)}') from e
